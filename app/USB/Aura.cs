@@ -80,12 +80,13 @@ namespace GHelper.USB
         public static Color Color1 = Color.White;
         public static Color Color2 = Color.Black;
 
-        static Color CyanBlue = Color.FromArgb(0, 240, 255);  // Cyan Blue
-        static Color VibrantPink = Color.FromArgb(255, 0, 255);  // Pink
-        static Color currentColor = CyanBlue;
-        static Color targetColor = VibrantPink;
-        static DateTime lastColorChange = DateTime.Now;
-        static bool isTransitioning = false;
+        private static Color CyanBlue = Color.FromArgb(0, 240, 255);  // Cyan Blue
+        private static Color VibrantPink = Color.FromArgb(255, 0, 255);  // Pink
+        private static Color currentColor = CyanBlue;
+        private static Color targetColor = VibrantPink;
+        private static DateTime lastColorChange = DateTime.Now;
+        private static bool isTransitioning = false;
+        private static bool isRunning = false;
 
         static bool isACPI = AppConfig.IsTUF() || AppConfig.IsVivoZenPro();
         static bool isStrix = AppConfig.IsAdvancedRGB() && !AppConfig.IsNoDirectRGB();
@@ -237,7 +238,7 @@ namespace GHelper.USB
 
         private static void Timer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
         {
-            if (!InputDispatcher.backlightActivity && Mode != AuraMode.CYBERPUNK)
+            if (!InputDispatcher.backlightActivity)
                 return;
 
             if (Mode == AuraMode.HEATMAP)
@@ -756,36 +757,46 @@ namespace GHelper.USB
 
             public static void ApplyCyberPunk()
             {
-                TimeSpan timeSinceLastChange = DateTime.Now - lastColorChange;
-
-                if (isTransitioning)
+                if (isRunning) return;
+                try
                 {
-                    double transitionProgress = timeSinceLastChange.TotalSeconds / 2.0;
-                    if (transitionProgress >= 1.0)
+                    isRunning = true;
+
+                    TimeSpan timeSinceLastChange = DateTime.Now - lastColorChange;
+
+                    if (isTransitioning)
                     {
-                        isTransitioning = false;
-                        lastColorChange = DateTime.Now;
-                        currentColor = targetColor;
-                        ApplyDirect(currentColor); 
+                        double transitionProgress = timeSinceLastChange.TotalSeconds / 2.0;
+                        if (transitionProgress >= 1.0)
+                        {
+                            isTransitioning = false;
+                            lastColorChange = DateTime.Now;
+                            currentColor = targetColor;
+                            ApplyDirect(currentColor);
+                        }
+                        else
+                        {
+                            Color blendedColor = ColorUtils.BlendColors(currentColor, targetColor, transitionProgress);
+                            ApplyDirect(blendedColor);
+                        }
                     }
                     else
                     {
-                        Color blendedColor = ColorUtils.BlendColors(currentColor, targetColor, transitionProgress);
-                        ApplyDirect(blendedColor);
+                        if (timeSinceLastChange.TotalSeconds >= 6)
+                        {
+                            isTransitioning = true;
+                            lastColorChange = DateTime.Now;
+                            targetColor = (currentColor == CyanBlue) ? VibrantPink : CyanBlue;
+                        }
+                        else
+                        {
+                            ApplyDirect(currentColor);
+                        }
                     }
                 }
-                else
+                finally
                 {
-                    if (timeSinceLastChange.TotalSeconds >= 6)
-                    {
-                        isTransitioning = true;
-                        lastColorChange = DateTime.Now;
-                        targetColor = (currentColor == CyanBlue) ? VibrantPink : CyanBlue;
-                    }
-                    else
-                    {
-                        ApplyDirect(currentColor); 
-                    }
+                    isRunning = false;
                 }
             }
 
