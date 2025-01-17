@@ -19,6 +19,14 @@ namespace GHelper.Helpers
             return Color.FromArgb(red, green, blue);
         }
 
+        public static Color BlendColors(Color fromColor, Color toColor, double progress)
+        {
+            int r = (int)(fromColor.R + (toColor.R - fromColor.R) * progress);
+            int g = (int)(fromColor.G + (toColor.G - fromColor.G) * progress);
+            int b = (int)(fromColor.B + (toColor.B - fromColor.B) * progress);
+            return Color.FromArgb(r, g, b);
+        }
+
         public static Color GetMidColor(Color color1, Color color2)
         {
             return Color.FromArgb((color1.R + color2.R) / 2,

@@ -52,6 +52,7 @@ namespace GHelper.USB
         HEATMAP = 20,
         GPUMODE = 21,
         AMBIENT = 22,
+        CYBERPUNK = 23,
     }
 
     public enum AuraSpeed : int
@@ -78,6 +79,13 @@ namespace GHelper.USB
 
         public static Color Color1 = Color.White;
         public static Color Color2 = Color.Black;
+
+        static Color CyanBlue = Color.FromArgb(0, 240, 255);  // Cyan Blue
+        static Color VibrantPink = Color.FromArgb(255, 0, 255);  // Pink
+        static Color currentColor = CyanBlue;
+        static Color targetColor = VibrantPink;
+        static DateTime lastColorChange = DateTime.Now;
+        static bool isTransitioning = false;
 
         static bool isACPI = AppConfig.IsTUF() || AppConfig.IsVivoZenPro();
         static bool isStrix = AppConfig.IsAdvancedRGB() && !AppConfig.IsNoDirectRGB();
@@ -106,6 +114,7 @@ namespace GHelper.USB
             { AuraMode.HEATMAP, "Heatmap"},
             { AuraMode.GPUMODE, "GPU Mode" },
             { AuraMode.AMBIENT, "Ambient"},
+            { AuraMode.CYBERPUNK, "CyberPunk"},
         };
 
         private static Dictionary<AuraMode, string> _modesAlly = new Dictionary<AuraMode, string>
@@ -133,6 +142,7 @@ namespace GHelper.USB
             { AuraMode.Flash, "Flash" },
             { AuraMode.HEATMAP, "Heatmap"},
             { AuraMode.AMBIENT, "Ambient"},
+            { AuraMode.CYBERPUNK, "CyberPunk"}
         };
 
         static Aura()
@@ -227,7 +237,7 @@ namespace GHelper.USB
 
         private static void Timer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
         {
-            if (!InputDispatcher.backlightActivity)
+            if (!InputDispatcher.backlightActivity && Mode != AuraMode.CYBERPUNK)
                 return;
 
             if (Mode == AuraMode.HEATMAP)
@@ -237,6 +247,10 @@ namespace GHelper.USB
             else if (Mode == AuraMode.AMBIENT)
             {
                 CustomRGB.ApplyAmbient();
+            }
+            else if (Mode == AuraMode.CYBERPUNK)
+            {
+                CustomRGB.ApplyCyberPunk();
             }
         }
 
@@ -290,9 +304,9 @@ namespace GHelper.USB
                 if (delay) await Task.Delay(TimeSpan.FromSeconds(1));
                 if (isACPI) Program.acpi.TUFKeyboardBrightness(brightness);
 
-                if (AppConfig.IsInputBacklight()) 
+                if (AppConfig.IsInputBacklight())
                     AsusHid.WriteInput(new byte[] { AsusHid.INPUT_ID, 0xBA, 0xC5, 0xC4, (byte)brightness }, log);
-                else 
+                else
                     AsusHid.Write(new byte[] { AsusHid.AURA_ID, 0xBA, 0xC5, 0xC4, (byte)brightness }, log);
 
                 if (AppConfig.IsAlly()) ApplyAura();
@@ -673,6 +687,14 @@ namespace GHelper.USB
                 return;
             }
 
+            if (Mode == AuraMode.CYBERPUNK)
+            {
+                CustomRGB.ApplyCyberPunk();
+                timer.Enabled = true;
+                timer.Interval = 100;
+                return; 
+            }
+
             if (Mode == AuraMode.GPUMODE)
             {
                 CustomRGB.ApplyGPUColor();
@@ -730,6 +752,41 @@ namespace GHelper.USB
                 else color = Color.Red;
 
                 ApplyDirect(color, init);
+            }
+
+            public static void ApplyCyberPunk()
+            {
+                TimeSpan timeSinceLastChange = DateTime.Now - lastColorChange;
+
+                if (isTransitioning)
+                {
+                    double transitionProgress = timeSinceLastChange.TotalSeconds / 2.0;
+                    if (transitionProgress >= 1.0)
+                    {
+                        isTransitioning = false;
+                        lastColorChange = DateTime.Now;
+                        currentColor = targetColor;
+                        ApplyDirect(currentColor); 
+                    }
+                    else
+                    {
+                        Color blendedColor = ColorUtils.BlendColors(currentColor, targetColor, transitionProgress);
+                        ApplyDirect(blendedColor);
+                    }
+                }
+                else
+                {
+                    if (timeSinceLastChange.TotalSeconds >= 6)
+                    {
+                        isTransitioning = true;
+                        lastColorChange = DateTime.Now;
+                        targetColor = (currentColor == CyanBlue) ? VibrantPink : CyanBlue;
+                    }
+                    else
+                    {
+                        ApplyDirect(currentColor); 
+                    }
+                }
             }
 
 
